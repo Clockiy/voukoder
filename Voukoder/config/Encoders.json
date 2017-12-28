@@ -1748,7 +1748,7 @@
         "Schauerland"
       ],
       "experimental": true,
-      "defaultPixelFormat": "nvenc_cuda",
+      "defaultPixelFormat": "yuv420p",
       "groups": [
         {
           "name": "VKDRh264NVENCAdvGroup",
