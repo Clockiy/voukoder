@@ -104,10 +104,8 @@ prMALError exBeginInstance(exportStdParms *stdParmsP, exExporterInstanceRec *ins
 			spError = spBasic->AcquireSuite(kPrSDKExportParamSuite, kPrSDKExportParamSuiteVersion, const_cast<const void**>(reinterpret_cast<void**>(&(instRec->exportParamSuite))));
 			spError = spBasic->AcquireSuite(kPrSDKExportInfoSuite, kPrSDKExportInfoSuiteVersion, const_cast<const void**>(reinterpret_cast<void**>(&(instRec->exportInfoSuite))));
 			spError = spBasic->AcquireSuite(kPrSDKSequenceAudioSuite, kPrSDKSequenceAudioSuiteVersion, const_cast<const void**>(reinterpret_cast<void**>(&(instRec->sequenceAudioSuite))));
-			spError = spBasic->AcquireSuite(kPrSDKSequenceRenderSuite, kPrSDKSequenceRenderSuiteVersion, const_cast<const void**>(reinterpret_cast<void**>(&(instRec->sequenceRenderSuite))));
 			spError = spBasic->AcquireSuite(kPrSDKExportFileSuite, kPrSDKExportFileSuiteVersion, const_cast<const void**>(reinterpret_cast<void**>(&(instRec->exportFileSuite))));
 			spError = spBasic->AcquireSuite(kPrSDKPPixSuite, kPrSDKPPixSuiteVersion, const_cast<const void**>(reinterpret_cast<void**>(&(instRec->ppixSuite))));
-			spError = spBasic->AcquireSuite(kPrSDKPPix2Suite, kPrSDKPPix2SuiteVersion, const_cast<const void**>(reinterpret_cast<void**>(&(instRec->ppix2Suite))));
 			spError = spBasic->AcquireSuite(kPrSDKExportProgressSuite, kPrSDKExportProgressSuiteVersion, const_cast<const void**>(reinterpret_cast<void**>(&(instRec->exportProgressSuite))));
 			spError = spBasic->AcquireSuite(kPrSDKWindowSuite, kPrSDKWindowSuiteVersion, const_cast<const void**>(reinterpret_cast<void**>(&(instRec->windowSuite))));
 			spError = spBasic->AcquireSuite(kPrSDKExporterUtilitySuite, kPrSDKExporterUtilitySuiteVersion, const_cast<const void**>(reinterpret_cast<void**>(&(instRec->exporterUtilitySuite))));
@@ -161,11 +159,6 @@ prMALError exEndInstance(exportStdParms *stdParmsP, exExporterInstanceRec *insta
 			result = spBasic->ReleaseSuite(kPrSDKSequenceAudioSuite, kPrSDKSequenceAudioSuiteVersion);
 		}
 
-		if (instRec->sequenceRenderSuite)
-		{
-			result = spBasic->ReleaseSuite(kPrSDKSequenceRenderSuite, kPrSDKSequenceRenderSuiteVersion);
-		}
-
 		if (instRec->exportFileSuite)
 		{
 			result = spBasic->ReleaseSuite(kPrSDKExportFileSuite, kPrSDKExportFileSuiteVersion);
@@ -174,11 +167,6 @@ prMALError exEndInstance(exportStdParms *stdParmsP, exExporterInstanceRec *insta
 		if (instRec->ppixSuite)
 		{
 			result = spBasic->ReleaseSuite(kPrSDKPPixSuite, kPrSDKPPixSuiteVersion);
-		}
-
-		if (instRec->ppix2Suite)
-		{
-			result = spBasic->ReleaseSuite(kPrSDKPPix2Suite, kPrSDKPPix2SuiteVersion);
 		}
 
 		if (instRec->exportProgressSuite)
@@ -1292,14 +1280,14 @@ prMALError exExport(exportStdParms *stdParmsP, exDoExportRec *exportInfoP)
 	}
 
 	// Create renderer instance
-	VideoRenderer *videoRenderer = new VideoRenderer(exID, videoWidth.value.intValue, videoHeight.value.intValue, format, instRec->ppixSuite,
-		instRec->memorySuite, instRec->exporterUtilitySuite);
+	VideoRenderer *videoRenderer = new AccurateVideoRenderer(exID, videoWidth.value.intValue, videoHeight.value.intValue, format, instRec->ppixSuite,
+		instRec->memorySuite, instRec->exporterUtilitySuite, instRec->imageProcessingSuite);
 
 	int currentPass = 0;
 	int maxPasses = videoEncoderConfig->getMaxPasses();
 
 	// Start the rendering loop
-	videoRenderer->render(exportInfoP->startTime, exportInfoP->endTime, maxPasses, [&](EncodingData encodingData)
+	result = videoRenderer->render(exportInfoP->startTime, exportInfoP->endTime, maxPasses, [&](EncodingData encodingData)
 	{
 		// Handle multiple passes
 		if (currentPass == 0 || (maxPasses > 1 && encodingData.pass > currentPass))
@@ -1378,14 +1366,13 @@ prMALError exExport(exportStdParms *stdParmsP, exDoExportRec *exportInfoP)
 
 		return true;
 	});
-	
-	delete (videoRenderer);
-	
+
+	// Close encoder and free memory
 	encoder->close(true);
 	delete(encoder);
-
+	delete(videoRenderer);
 	delete(audioEncoderConfig);
 	delete(videoEncoderConfig);
 
-	return malNoError;
+	return result;
 }

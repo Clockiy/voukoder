@@ -28,10 +28,7 @@
 #include "EncoderConfig.h"
 #include "lavf.h"
 
-#define PLUGIN_APPNAME							L"Voukoder 0.5.1"
-#define PLUGIN_ERR_COMBINATION_NOT_SUPPORTED	L"This combination of muxer, codecs and parameters is not supported."
-#define PLUGIN_AUDIO_SAMPLE_FORMAT				AV_SAMPLE_FMT_FLTP
-//#define PLUGIN_AUDIO_SAMPLE_RATE				48000
+#define PLUGIN_APPNAME							L"Voukoder 0.5.2"
 #define MAX_AUDIO_CHANNELS						6
 #define VKDRTVStandard							"VKDRTVStandard"
 #define VKDRColorSpace							"VKDRColorSpace"
@@ -53,10 +50,8 @@ typedef struct InstanceRec
 	PrSDKExportParamSuite *exportParamSuite;
 	PrSDKExportInfoSuite *exportInfoSuite;
 	PrSDKSequenceAudioSuite *sequenceAudioSuite;
-	PrSDKSequenceRenderSuite *sequenceRenderSuite;
 	PrSDKExportFileSuite *exportFileSuite;
 	PrSDKPPixSuite *ppixSuite;
-	PrSDKPPix2Suite *ppix2Suite;
 	PrSDKExportProgressSuite *exportProgressSuite;
 	PrSDKWindowSuite *windowSuite;
 	PrSDKExporterUtilitySuite *exporterUtilitySuite;
