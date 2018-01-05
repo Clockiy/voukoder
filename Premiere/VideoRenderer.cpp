@@ -1,6 +1,7 @@
 #include "VideoRenderer.h"
 #include <tmmintrin.h>
 
+// reviewed 0.5.2
 VideoRenderer::VideoRenderer(csSDK_uint32 videoRenderID, csSDK_uint32 width, csSDK_uint32 height, PrPixelFormat pixelFormat, PrSDKPPixSuite *ppixSuite, PrSDKMemoryManagerSuite *memorySuite, PrSDKExporterUtilitySuite *exporterUtilitySuite, PrSDKImageProcessingSuite *imageProcessingSuite) :
 	videoRenderID(videoRenderID),
 	width(width),
@@ -25,6 +26,7 @@ VideoRenderer::VideoRenderer(csSDK_uint32 videoRenderID, csSDK_uint32 width, csS
 	}
 }
 
+// reviewed 0.5.2
 VideoRenderer::~VideoRenderer()
 {
 	// Free buffer
@@ -37,6 +39,7 @@ VideoRenderer::~VideoRenderer()
 	}
 }
 
+// reviewed 0.5.2
 void VideoRenderer::deinterleave(char* pixels, csSDK_int32 rowBytes, char *bufferY, char *bufferU, char *bufferV)
 {
 	// Shuffle mask
@@ -63,6 +66,7 @@ void VideoRenderer::deinterleave(char* pixels, csSDK_int32 rowBytes, char *buffe
 	}
 }
 
+// reviewed 0.5.2
 void VideoRenderer::deinterleave(char* pixels, csSDK_int32 rowBytes, char *bufferY, char *bufferU, char *bufferV, char *bufferA)
 {
 	// Scaling factors (note min. values are actually negative) (limited range)
@@ -94,6 +98,7 @@ void VideoRenderer::deinterleave(char* pixels, csSDK_int32 rowBytes, char *buffe
 	}
 }
 
+// reviewed 0.5.2
 bool VideoRenderer::isBt709(PrPixelFormat format)
 {
 	return (format == PrPixelFormat_VUYA_4444_8u_709 ||
@@ -117,6 +122,7 @@ bool VideoRenderer::isBt709(PrPixelFormat format)
 
 #pragma region StandardVideoRenderer
 
+// reviewed 0.5.2
 prSuiteError StandardVideoRenderer::frameCompleteCallback(const csSDK_uint32 inWhichPass, const csSDK_uint32 inFrameNumber, const csSDK_uint32 inFrameRepeatCount, PPixHand inRenderedFrame, void* inCallbackData)
 {
 	prSuiteError error = suiteError_NoError;
@@ -177,6 +183,7 @@ prSuiteError StandardVideoRenderer::frameCompleteCallback(const csSDK_uint32 inW
 	return error;
 }
 
+// reviewed 0.5.2
 prSuiteError StandardVideoRenderer::render(PrTime startTime, PrTime endTime, csSDK_uint32 passes, function<bool(EncodingData)> callback)
 {
 	this->callback = callback;
@@ -203,6 +210,7 @@ prSuiteError StandardVideoRenderer::render(PrTime startTime, PrTime endTime, csS
 
 #pragma region AccurateVideoRenderer
 
+// reviewed 0.5.2
 prSuiteError AccurateVideoRenderer::frameCompleteCallback(const csSDK_uint32 inWhichPass, const csSDK_uint32 inFrameNumber, const csSDK_uint32 inFrameRepeatCount, PPixHand inRenderedFrame, void* inCallbackData)
 {
 	prSuiteError error = suiteError_NoError;
@@ -345,7 +353,7 @@ prSuiteError AccurateVideoRenderer::frameCompleteCallback(const csSDK_uint32 inW
 		// Convert frame
 		error = imageProcessingSuite->ScaleConvert(format, width, height, rowBytes, prFieldsNone, pixels,
 			pixelFormat, width, height, destRowBytes, prFieldsNone, conversionBuffer,
-			kPrRenderQuality_Max);
+			kPrRenderQuality_High);
 		if (error != suiteError_NoError)
 		{
 			return error;
@@ -393,6 +401,7 @@ prSuiteError AccurateVideoRenderer::frameCompleteCallback(const csSDK_uint32 inW
 	return error;
 }
 
+// reviewed 0.5.2
 prSuiteError AccurateVideoRenderer::render(PrTime startTime, PrTime endTime, csSDK_uint32 passes, function<bool(EncodingData)> callback)
 {
 	this->callback = callback;

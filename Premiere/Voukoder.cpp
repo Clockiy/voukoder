@@ -1090,7 +1090,7 @@ prMALError exValidateOutputSettings(exportStdParms *stdParmsP, exValidateOutputS
 	return result;
 }
 
-// reviewed 0.5.0
+// reviewed 0.5.2
 prMALError SetupEncoderInstance(InstanceRec *instRec, csSDK_uint32 exID, Encoder *encoder, EncoderConfig *videoConfig, EncoderConfig *audioConfig)
 {
 	prMALError result = malNoError;
@@ -1177,7 +1177,7 @@ prMALError SetupEncoderInstance(InstanceRec *instRec, csSDK_uint32 exID, Encoder
 	return result;
 }
 
-// reviewed 0.5.0
+// reviewed 0.5.2
 prMALError exExport(exportStdParms *stdParmsP, exDoExportRec *exportInfoP)
 {
 	prMALError result = malNoError;

@@ -375,7 +375,7 @@
     <None Include="config\General.json" />
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="Voukoder.rc">
+    <ResourceCompile Include="Premiere.rc">
       <Filter>Resource Files</Filter>
     </ResourceCompile>
   </ItemGroup>
