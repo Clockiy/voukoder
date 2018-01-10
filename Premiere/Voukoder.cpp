@@ -997,7 +997,7 @@ prMALError exGetParamSummary(exportStdParms *stdParmsP, exParamSummaryRec *summa
 prMALError exValidateOutputSettings(exportStdParms *stdParmsP, exValidateOutputSettingsRec *validateOutputSettingsRec)
 {
 	prMALError result = malNoError;
-
+	/*
 	csSDK_uint32 exID = validateOutputSettingsRec->exporterPluginID;
 	InstanceRec *instRec = reinterpret_cast<InstanceRec *>(validateOutputSettingsRec->privateData);
 	Settings *settings = instRec->settings;
@@ -1092,6 +1092,8 @@ prMALError exValidateOutputSettings(exportStdParms *stdParmsP, exValidateOutputS
 	delete(encoder);
 	delete(videoEncoderConfig);
 	delete(audioEncoderConfig);
+
+	*/
 
 	return result;
 }
@@ -1191,7 +1193,6 @@ prMALError exExport(exportStdParms *stdParmsP, exDoExportRec *exportInfoP)
 	csSDK_uint32 exID = exportInfoP->exporterPluginID;
 	InstanceRec *instRec = reinterpret_cast<InstanceRec *>(exportInfoP->privateData);
 	Settings *settings = instRec->settings;
-	Encoder *encoder;
 
 #pragma region Get filename
 
@@ -1216,8 +1217,8 @@ prMALError exExport(exportStdParms *stdParmsP, exDoExportRec *exportInfoP)
 	EncoderInfo videoEncoderInfo = FilterTypeVectorById(videoEncoderInfos, videoCodec.value.intValue);
 
 	// Create config
-	EncoderConfig *videoEncoderConfig = new EncoderConfig(instRec->exportParamSuite, exID);
-	videoEncoderConfig->initFromSettings(&videoEncoderInfo);
+	EncoderConfig videoEncoderConfig = EncoderConfig(instRec->exportParamSuite, exID);
+	videoEncoderConfig.initFromSettings(&videoEncoderInfo);
 
 #pragma endregion
 
@@ -1232,8 +1233,8 @@ prMALError exExport(exportStdParms *stdParmsP, exDoExportRec *exportInfoP)
 	EncoderInfo audioEncoderInfo = FilterTypeVectorById(encoderInfos, audioCodec.value.intValue);
 
 	// Create config
-	EncoderConfig *audioEncoderConfig = new EncoderConfig(instRec->exportParamSuite, exID);
-	audioEncoderConfig->initFromSettings(&audioEncoderInfo);
+	EncoderConfig audioEncoderConfig = EncoderConfig(instRec->exportParamSuite, exID);
+	audioEncoderConfig.initFromSettings(&audioEncoderInfo);
 
 #pragma endregion
 
@@ -1269,31 +1270,22 @@ prMALError exExport(exportStdParms *stdParmsP, exDoExportRec *exportInfoP)
 	PrTime audioSamplesLeft = (exportInfoP->endTime - exportInfoP->startTime) / ticksPerSample;
 	csSDK_int32 chunk;
 
-	// Target pixel format
-	PrPixelFormat format;
-	string pixfmt = videoEncoderConfig->getPixelFormat();
-	if (pixfmt == "yuv420p" ||
-		pixfmt == "yuv422p" ||
-		pixfmt == "yuv444p")
-	{
-		// 8bit color depth
-		format = colorSpace.value.intValue == vkdrBT709 ? PrPixelFormat_VUYA_4444_8u_709 : PrPixelFormat_VUYA_4444_8u;
-	}
-	else
-	{
-		// > 8bit color depth
-		format = colorSpace.value.intValue == vkdrBT709 ? PrPixelFormat_VUYA_4444_32f_709 : PrPixelFormat_VUYA_4444_32f;
-	}
-
 	// Create renderer instance
-	VideoRenderer *videoRenderer = new AccurateVideoRenderer(exID, videoWidth.value.intValue, videoHeight.value.intValue, format, instRec->ppixSuite,
+	VideoRenderer *videoRenderer = new VideoRenderer(exID, instRec->ppixSuite,
 		instRec->ppix2Suite, instRec->memorySuite, instRec->exporterUtilitySuite, instRec->imageProcessingSuite);
 
 	int currentPass = 0;
-	int maxPasses = videoEncoderConfig->getMaxPasses();
+	int maxPasses = videoEncoderConfig.getMaxPasses();
+
+	// Create encoder instance
+	Encoder encoder = Encoder(NULL, filename);
+
+	result = SetupEncoderInstance(instRec, exID, &encoder, &videoEncoderConfig, &audioEncoderConfig);
 
 	// Start the rendering loop
-	result = videoRenderer->render(exportInfoP->startTime, exportInfoP->endTime, maxPasses, [&](EncodingData encodingData)
+	result = videoRenderer->render(videoWidth.value.intValue, videoHeight.value.intValue, 
+		colorSpace.value.intValue == vkdrBT601 ? ColorSpace::bt601 : ColorSpace::bt709, 
+		exportInfoP->startTime, exportInfoP->endTime, maxPasses, [&](EncodingData encodingData)
 	{
 		// Handle multiple passes
 		if (currentPass == 0 || (maxPasses > 1 && encodingData.pass > currentPass))
@@ -1301,43 +1293,40 @@ prMALError exExport(exportStdParms *stdParmsP, exDoExportRec *exportInfoP)
 			// Close current encoder instance
 			if (currentPass > 0)
 			{
-				encoder->close(true);
-				delete(encoder);
+				encoder.close(true);
 			}
 
 			// Start next pass
 			currentPass = encodingData.pass;
-
-			// Create encoder instance
-			encoder = new Encoder(NULL, filename);
-
-			result = SetupEncoderInstance(instRec, exID, encoder, videoEncoderConfig, audioEncoderConfig);
 
 			// Multipass encoding
 			if (maxPasses > 1)
 			{
 				if (currentPass == 1)
 				{
-					encoder->videoContext->setCodecFlags(AV_CODEC_FLAG_PASS1);
+					encoder.videoContext->setCodecFlags(AV_CODEC_FLAG_PASS1);
 				}
 				else
 				{
-					encoder->videoContext->setCodecFlags(AV_CODEC_FLAG_PASS2);
+					encoder.videoContext->setCodecFlags(AV_CODEC_FLAG_PASS2);
 				}
 			}
 
 			// Open the encoder
-			if (encoder->open() != S_OK)
+			if (encoder.open() != S_OK)
 			{
 				return false;
 			}
 		}
 
 		// Encode and write the rendered video frame
-		encoder->writeVideoFrame(&encodingData);
+		if (encoder.writeVideoFrame(&encodingData) != S_OK)
+		{
+			return false;
+		}
 
 		// Write all audio samples for that video frame
-		while (encoder->getNextFrameType() == FrameType::AudioFrame && audioSamplesLeft > 0)
+		while (encoder.getNextFrameType() == FrameType::AudioFrame && audioSamplesLeft > 0)
 		{
 			// Set chunk size
 			if (audioSamplesLeft > maxBlip)
@@ -1353,7 +1342,7 @@ prMALError exExport(exportStdParms *stdParmsP, exDoExportRec *exportInfoP)
 			result = instRec->sequenceAudioSuite->GetAudio(audioRendererID, chunk, audioBuffer, kPrFalse);
 
 			// Send raw data to the encoder
-			if (encoder->writeAudioFrame((const uint8_t**)audioBuffer, chunk) != S_OK)
+			if (encoder.writeAudioFrame((const uint8_t**)audioBuffer, chunk) != S_OK)
 			{
 				return false;
 			}
@@ -1373,12 +1362,10 @@ prMALError exExport(exportStdParms *stdParmsP, exDoExportRec *exportInfoP)
 		return true;
 	});
 
+	// TODO: call this once both audio and video is flushed and finished!
+
 	// Close encoder and free memory
-	encoder->close(true);
-	delete(encoder);
-	delete(videoRenderer);
-	delete(audioEncoderConfig);
-	delete(videoEncoderConfig);
+	encoder.close(result == suiteError_NoError);
 
 	return result;
 }

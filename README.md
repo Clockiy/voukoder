@@ -1,74 +1,19 @@
-# voukoder
+# VOUKODER
 Use x264, x265 and other encoders of the libav or ffmpeg library directly in Adobe Premiere (Pro and Elements). Currently supporting:
 - x264 (8 bit only)
 - x265 (8, 10 and 12bit)
 - ProRes (experimental)
 - FFV1 (experimental)
 
-See the Wiki page for more details.
+See the **Wiki** page for more details.
 
 This plugin is under heavy development and not yet ready for production use - ... although the results are pretty much useable already.
 Currently this plugin is for **Windows only**. I do not have a Mac computer available to develop a Mac version.
 
-## Download
-
+## How to get it
 You can find the latest version on the [Releases page](https://github.com/Vouk/voukoder/releases).
 
-## Installation
-
-Copy the file Voukoder.prm to your plugins directory.
-
-### Premiere CS6
-
-    C:\Program Files\Adobe\Adobe Premiere Pro CS6\Plug-ins\Common       // Available to Premiere CS6
-    C:\Program Files\Adobe\Adobe Media Encoder CS6\Plug-ins\Common      // Available to Media Encoder CS6
-    C:\Program Files\Adobe\Common\Plug-ins\CS6\MediaCore                // Available to both Premiere CS6 and Media Encoder CS6
-
-### Premiere CC 2017 / 2018
-
-    C:\Program Files\Adobe\Adobe Premiere Pro CC 2017\Plug-Ins\Common   // Available to Premiere CC 2017
-    C:\Program Files\Adobe\Adobe Media Encoder CC 2017\Plug-Ins\Common  // Available to Media Encoder CC 2017
-    
-### Premiere Elements 15
-
-    C:\Program Files\Adobe\Adobe Premiere Elements 15\Plug-Ins\Common   // Available to Premiere Elements 15
-    
-## Deinstallation
-
-Just delete the Voukoder.prm file.
-
-## Compilation
-
-This project makes use of:
-
-* x264 - http://x264.org
-* x265 - http://x265.org
-* libav - https://libav.org
-* ffmpeg - https://ffmpeg.org
-* Adobe Premiere SDK - http://download.macromedia.com/pub/developer/premiere/sdk/premiere_pro_cs6_r2_sdk_win.zip
-
-### Paths
-
-All directories are relative to the checkout directory.
-
-#### ../../external/include/
-
-* "lib*" - LibAV or ffmpeg directories containing headers
-* "premiere_cs6" - Premiere SDK directory
-* "x264.h", "x264_config.h"
-* "x265.h", "x265_config.h"
-
-#### ../../external/lib/[debug|release]
-
-* LibAV or ffmpeg static libs
-* libx264.lib
-* x265.lib
-
-Note: These libs are created by ffmpeg or libav build scripts.
-
-### Preprocessor
-
-Tell the preprocessor to either use LibAV or ffmpeg (/DLIB_FFMPEG or /DLIB_LIBAV).
+Please read the [installation instructions](https://github.com/Vouk/voukoder/wiki/Installation) carefully.
 
 ## Donations
 

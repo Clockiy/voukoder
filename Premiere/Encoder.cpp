@@ -18,6 +18,7 @@ Encoder::~Encoder()
 {	
 	delete(videoContext);
 	delete(audioContext);
+
 	avformat_free_context(formatContext);
 }
 
@@ -27,7 +28,7 @@ int Encoder::open()
 	int ret;
 
 	// Open video stream
-	if ((ret = videoContext->openCodec()) > 0)
+	if ((ret = videoContext->openCodec()) != S_OK)
 	{
 		close(false);
 
@@ -35,7 +36,7 @@ int Encoder::open()
 	}
 
 	// Open audio stream
-	if ((ret = audioContext->openCodec()) > 0)
+	if ((ret = audioContext->openCodec()) != S_OK)
 	{
 		close(false);
 
@@ -79,14 +80,12 @@ int Encoder::open()
 	//av_dict_set(&options, "movflags", "faststart", 0);
 
 	// Check muxer/codec combination and write header
-	if ((ret = avformat_write_header(formatContext, &options)) != S_OK)
-	{
+	ret = avformat_write_header(formatContext, &options);
+
+	if (ret != S_OK)
 		close(false);
 
-		return ret;
-	}
-
-	return S_OK;
+	return ret;
 }
 
 // reviewed 0.3.8
@@ -245,13 +244,14 @@ int Encoder::writeAudioFrame(const uint8_t **data, int32_t sampleCount)
 	}
 	else
 	{
+		// Take first frame filter found
 		frameFilter = audioContext->frameFilters.begin()->second;
 	}
 
 	int ret = S_OK, err;
 	bool finished = true;
 
-	/* Do we have samples to add to the buffer? */
+	// Do we have samples to add to the buffer?
 	if (data != NULL)
 	{
 		finished = false;
@@ -333,7 +333,7 @@ int Encoder::writeAudioFrame(const uint8_t **data, int32_t sampleCount)
 // reviewed 0.3.8
 int Encoder::encodeAndWriteFrame(EncoderContext *context, AVFrame *frame, FrameFilter *frameFilter)
 {
-	int ret;
+	int ret = S_OK;
 
 	// In case we want to flush the encoder
 	if (frame == NULL)
@@ -341,7 +341,7 @@ int Encoder::encodeAndWriteFrame(EncoderContext *context, AVFrame *frame, FrameF
 		// Send NULL frame
 		if ((ret = avcodec_send_frame(context->codecContext, frame)) != S_OK)
 		{
-			return AVERROR_UNKNOWN;
+			return ret;
 		}
 
 		// Flush receiver
@@ -351,20 +351,20 @@ int Encoder::encodeAndWriteFrame(EncoderContext *context, AVFrame *frame, FrameF
 	// Send the uncompressed frame to frame filter
 	if ((ret = frameFilter->sendFrame(frame)) != S_OK)
 	{
-		return AVERROR_UNKNOWN;
+		return ret;
 	}
 
 	AVFrame *tmp_frame;
 	tmp_frame = av_frame_alloc();
 
 	// Receive frames from the rame filter
-	while ((ret = frameFilter->receiveFrame(tmp_frame)) >= 0)
+	while (frameFilter->receiveFrame(tmp_frame) >= 0)
 	{
 		// Send the frame to the encoder
 		if ((ret = avcodec_send_frame(context->codecContext, tmp_frame)) != S_OK)
 		{
 			av_frame_free(&tmp_frame);
-			return AVERROR_UNKNOWN;
+			return ret;
 		}
 
 		av_frame_unref(tmp_frame);
@@ -377,15 +377,18 @@ receive_packets:
 	AVPacket *packet = av_packet_alloc();
 
 	// If we receive a packet from the encoder write it to the stream
-	while ((ret = avcodec_receive_packet(context->codecContext, packet)) >= 0)
+	while (avcodec_receive_packet(context->codecContext, packet) >= 0)
 	{
 		av_packet_rescale_ts(packet, context->codecContext->time_base, context->stream->time_base);
 		packet->stream_index = context->stream->index;
-		av_interleaved_write_frame(formatContext, packet);
+		
+		if ((ret = av_interleaved_write_frame(formatContext, packet)) < 0)
+			break;
+
 		av_packet_unref(packet);
 	}
 
-	return S_OK;
+	return ret;
 }
 
 // reviewed 0.3.8
