@@ -1123,7 +1123,7 @@ prMALError SetupEncoderInstance(InstanceRec *instRec, csSDK_uint32 exID, Encoder
 		break;
 
 	case kPrAudioChannelType_51:
-		audioContextInfo.channelLayout = AV_CH_LAYOUT_5POINT1;
+		audioContextInfo.channelLayout = AV_CH_LAYOUT_5POINT1_BACK;
 		break;
 
 	default:
@@ -1184,11 +1184,12 @@ prMALError exExport(exportStdParms *stdParmsP, exDoExportRec *exportInfoP)
 
 #pragma region Get filename
 
-	// Get the file name 
+	// Get export filename
 	prUTF16Char prFilename[kPrMaxPath];
 	csSDK_int32 prFilenameLength = kPrMaxPath;
-	size_t i;
 	instRec->exportFileSuite->GetPlatformPath(exportInfoP->fileObject, &prFilenameLength, prFilename);
+	
+	size_t i;
 	char *filename = (char*)malloc(kPrMaxPath);
 	wcstombs_s(&i, filename, (size_t)kPrMaxPath, prFilename, (size_t)kPrMaxPath);
 
