@@ -2521,14 +2521,14 @@
             },
             {
               "id": 11,
-              "name": "61",
+              "name": "6.1",
               "parameters": {
                 "level": "61"
               }
             },
             {
               "id": 12,
-              "name": "62",
+              "name": "6.2",
               "parameters": {
                 "level": "62"
               }
@@ -2807,6 +2807,19 @@
           }
         },
         {
+          "name": "hevc_nvencGOP",
+          "label": "Max. GOP Size",
+          "group": "VKDRhevcNVENCGOPGroup",
+          "type": "int",
+          "flags": [ "slider" ],
+          "defaultValue": 250,
+          "minValue": 1,
+          "maxValue": 999,
+          "parameters": {
+            "g": "%d"
+          }
+        },
+        {
           "name": "hevc_nvencQPP",
           "label": "QP Value For P-Frames",
           "group": "VKDRhevcNVENCGOPGroup",
@@ -2846,6 +2859,19 @@
           }
         },
         {
+          "name": "hevc_nvencGPU",
+          "label": "GPU",
+          "group": "VKDRhevcNVENCGOPGroup",
+          "type": "int",
+          "flags": [ "slider" ],
+          "defaultValue": 0,
+          "minValue": 0,
+          "maxValue": 4,
+          "parameters": {
+            "gpu": "%d"
+          }
+        },
+        {
           "name": "hevc_nvencBDC",
           "label": "Blu-Ray Compatibility",
           "group": "VKDRhevcNVENCAdvGroup",
@@ -2854,6 +2880,17 @@
           "defaultValue": 0,
           "parameters": {
             "bluray-compat": ""
+          }
+        },
+        {
+          "name": "hevc_nvenc2Pass",
+          "label": "2Pass",
+          "group": "VKDRhevcNVENCAdvGroup",
+          "type": "bool",
+          "flags": [],
+          "defaultValue": 1,
+          "parameters": {
+            "2pass": ""
           }
         }
       ]
