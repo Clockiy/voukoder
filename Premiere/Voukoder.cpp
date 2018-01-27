@@ -1272,7 +1272,7 @@ prMALError exExport(exportStdParms *stdParmsP, exDoExportRec *exportInfoP)
 
 	// Create renderer instance
 	VideoRenderer *videoRenderer = new VideoRenderer(exID, videoWidth.value.intValue, videoHeight.value.intValue, 
-		instRec->ppixSuite,	instRec->ppix2Suite, instRec->memorySuite, instRec->exporterUtilitySuite, instRec->imageProcessingSuite);
+		instRec->ppixSuite,	instRec->ppix2Suite, instRec->memorySuite, instRec->exporterUtilitySuite);
 
 	int currentPass = 0;
 	int maxPasses = videoEncoderConfig.getMaxPasses();
@@ -1309,6 +1309,13 @@ prMALError exExport(exportStdParms *stdParmsP, exDoExportRec *exportInfoP)
 
 			// Start next pass
 			currentPass = encodingData->pass;
+
+			// Interlaced?
+			if (fieldType.value.intValue == prFieldsLowerFirst ||
+				fieldType.value.intValue == prFieldsUpperFirst)
+			{
+				encoder.videoContext->setCodecFlags(AV_CODEC_FLAG_INTERLACED_DCT | AV_CODEC_FLAG_INTERLACED_ME);
+			}
 
 			// Multipass encoding
 			if (maxPasses > 1)
