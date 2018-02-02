@@ -1,5 +1,6 @@
 #include "Encoder.h"
 #include "Common.h"
+#include <Windows.h>
 
 // reviewed 0.5.3
 Encoder::Encoder(const char *short_name, const char *filename)
@@ -9,6 +10,9 @@ Encoder::Encoder(const char *short_name, const char *filename)
 	formatContext = avformat_alloc_context();
 	formatContext->oformat = av_guess_format(short_name, this->filename, NULL);
 
+	// Set metadata
+	av_dict_set(&formatContext->metadata, "encoding_tool", PLUGIN_ENCODER_TOOL, 0);
+	
 	videoContext = new EncoderContext(formatContext);
 	audioContext = new EncoderContext(formatContext);
 }
@@ -41,17 +45,6 @@ int Encoder::open()
 		close(false);
 
 		return ret;
-	}
-
-	if (audioContext->codec->type == AVMEDIA_TYPE_AUDIO)
-	{
-		// Create audio fifo buffer
-		if (!(fifo = av_audio_fifo_alloc(audioContext->codecContext->sample_fmt, audioContext->codecContext->channels, 1)))
-		{
-			close(false);
-
-			return AVERROR_EXIT;
-		}
 	}
 
 	// Encoder to file or to memory?
@@ -120,16 +113,11 @@ void Encoder::close(bool writeTrailer)
 // reviewed 0.3.8
 int Encoder::writeVideoFrame(EncodingData *encodingData)
 {
-	int ret;
-
 	// Do we just want to flush the encoder?
 	if (encodingData == NULL)
 	{
 		// Send the frame to the encoder
-		if ((ret = encodeAndWriteFrame(videoContext, NULL, NULL)) < 0)
-		{
-			return ret;
-		}
+		encodeAndWriteFrame(videoContext, NULL, NULL);
 
 		// Destroy frame filters
 		for (auto items : videoContext->frameFilters)
@@ -158,25 +146,12 @@ int Encoder::writeVideoFrame(EncodingData *encodingData)
 			options.height = videoContext->codecContext->height;
 			options.pix_fmt = av_get_pix_fmt(encodingData->pix_fmt);
 			options.time_base = videoContext->codecContext->time_base;
-			options.sar.den = 1;
-			options.sar.num = 1;
-
-			// Add additional filters
-			ostringstream filters;
-			if (encodingData->filters.vflip)
-			{
-				filters << "vflip,";
-			}
-			if (!encodingData->filters.scale.empty())
-			{
-				filters << "scale=";
-				filters << encodingData->filters.scale;
-				filters << ",";
-			}
+			options.sar.den = videoContext->codecContext->sample_aspect_ratio.den;
+			options.sar.num = videoContext->codecContext->sample_aspect_ratio.num;
 
 			// Set target format
 			char filterConfig[256];
-			sprintf_s(filterConfig, "%sformat=pix_fmts=%s", filters.str().c_str(), videoContext->encoderConfig->getPixelFormat().c_str());
+			sprintf_s(filterConfig, "format=pix_fmts=%s", videoContext->encoderConfig->getPixelFormat().c_str());
 
 			frameFilter = new FrameFilter();
 			frameFilter->configure(options, filterConfig);
@@ -194,9 +169,11 @@ int Encoder::writeVideoFrame(EncodingData *encodingData)
 	frame->width = videoContext->codecContext->width;
 	frame->height = videoContext->codecContext->height;
 	frame->format = av_get_pix_fmt(encodingData->pix_fmt);
+	
+	int ret;
 
 	// Reserve buffer space
-	if ((ret = av_frame_get_buffer(frame, 32)) < 0)
+	if ((ret = av_frame_get_buffer(frame, 0)) < 0)
 	{
 		return ret;
 	}
@@ -223,9 +200,27 @@ int Encoder::writeVideoFrame(EncodingData *encodingData)
 	return S_OK;
 }
 
-// reviewed 0.3.8
-int Encoder::writeAudioFrame(const uint8_t **data, int32_t sampleCount)
+// reviewed 0.5.6
+int Encoder::writeAudioFrame(float **data, int32_t sampleCount)
 {
+	// Just want to finish encoding?
+	if (data == NULL)
+	{
+		// Flush the encoder
+		encodeAndWriteFrame(audioContext, NULL, NULL);
+
+		// Destroy frame filters
+		for (auto items : audioContext->frameFilters)
+		{
+			delete(items.second);
+		}
+
+		// Clear filter map
+		audioContext->frameFilters.clear();
+
+		return S_OK;
+	}
+	
 	FrameFilter *frameFilter;
 
 	// Set up frame filter
@@ -255,10 +250,21 @@ int Encoder::writeAudioFrame(const uint8_t **data, int32_t sampleCount)
 			audioLayout = "stereo";
 		}
 
+		// Find the right sample size (for PCM we take what we get from the host)
+		int frame_size = audioContext->codecContext->frame_size;
+		if (frame_size == 0)
+		{
+			frame_size = sampleCount;
+		}
+
 		// Set target format
 		char filterConfig[256];
 		sprintf_s(filterConfig, 
-			"aformat=channel_layouts=%s:sample_fmts=%s:sample_rates=%d", audioLayout, av_get_sample_fmt_name(audioContext->codecContext->sample_fmt), audioContext->codecContext->sample_rate);
+			"aformat=channel_layouts=%s:sample_fmts=%s:sample_rates=%d,asetnsamples=n=%d:p=0", 
+			audioLayout,
+			av_get_sample_fmt_name(audioContext->codecContext->sample_fmt),
+			audioContext->codecContext->sample_rate,
+			frame_size);
 		
 		frameFilter = new FrameFilter();
 		frameFilter->configure(options, filterConfig);
@@ -271,84 +277,31 @@ int Encoder::writeAudioFrame(const uint8_t **data, int32_t sampleCount)
 		frameFilter = audioContext->frameFilters.begin()->second;
 	}
 
-	int ret = S_OK, err;
-	bool finished = true;
+	// Create the source frame
+	AVFrame *frame;
+	frame = av_frame_alloc();
+	frame->nb_samples = sampleCount;
+	frame->channel_layout = audioContext->codecContext->channel_layout;
+	frame->format = AV_SAMPLE_FMT_FLTP;
+	frame->sample_rate = audioContext->codecContext->sample_rate;
+	frame->pts = audioContext->next_pts++;
 
-	// Do we have samples to add to the buffer?
-	if (data != NULL)
+	int ret;
+
+	// Allocate the buffer for the frame
+	if ((ret = av_frame_get_buffer(frame, 0)) == 0)
 	{
-		finished = false;
-
-		/* Resize the buffer so it can store all samples */
-		if ((err = av_audio_fifo_realloc(fifo, av_audio_fifo_size(fifo) + sampleCount)) < 0)
+		// Assign the audio plane pointer
+		for (int c = 0; c < audioContext->codecContext->channels; c++)
 		{
-			return AVERROR_EXIT;
+			frame->data[c] = (uint8_t*)data[c];
 		}
 
-		/* Add the new samples to the buffer */
-		if (av_audio_fifo_write(fifo, (void **)data, sampleCount) < sampleCount)
-		{
-			return AVERROR_EXIT;
-		}
+		// Send the frame to the encoder
+		ret = encodeAndWriteFrame(audioContext, frame, frameFilter);
 	}
 
-	/* Do we have enough samples for the encoder? */
-	while (av_audio_fifo_size(fifo) >= audioContext->codecContext->frame_size || (finished && av_audio_fifo_size(fifo) > 0))
-	{
-		AVFrame *frame;
-
-		int frame_size = FFMIN(av_audio_fifo_size(fifo), audioContext->codecContext->frame_size);
-
-		frame = av_frame_alloc();
-		frame->nb_samples = frame_size;
-		frame->channel_layout = audioContext->codecContext->channel_layout;
-		frame->format = AV_SAMPLE_FMT_FLTP;
-		frame->sample_rate = audioContext->codecContext->sample_rate;
-
-		/* Allocate the buffer for the frame */
-		if ((err = av_frame_get_buffer(frame, 0)) < 0)
-		{
-			av_frame_free(&frame);
-			return AVERROR_EXIT;
-		}
-
-		/* Fill buffers with data from the fifo */
-		if (av_audio_fifo_read(fifo, (void **)frame->data, frame_size) < frame_size)
-		{
-			av_frame_free(&frame);
-			return AVERROR_EXIT;
-		}
-
-		frame->pts = audioContext->next_pts;
-		audioContext->next_pts += frame->nb_samples;
-
-		/* Send the frame to the encoder */
-		if ((ret = encodeAndWriteFrame(audioContext, frame, frameFilter)) < 0)
-		{
-			av_frame_free(&frame);
-			return ret;
-		}
-
-		av_frame_free(&frame);
-	}
-
-	if (finished) 
-	{
-		// Flush the encoder
-		if ((ret = encodeAndWriteFrame(audioContext, NULL, NULL)) < 0)
-		{
-			return ret;
-		}
-
-		// Destroy frame filters
-		for (auto items : audioContext->frameFilters)
-		{
-			delete(items.second);
-		}
-
-		// Clear filter map
-		audioContext->frameFilters.clear();
-	}
+	av_frame_free(&frame);
 
 	return ret;
 }

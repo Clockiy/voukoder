@@ -1119,7 +1119,7 @@ prMALError exValidateOutputSettings(exportStdParms *stdParmsP, exValidateOutputS
 	return result;
 }
 
-// reviewed 0.5.3
+// reviewed 0.5.6
 prMALError exExport(exportStdParms *stdParmsP, exDoExportRec *exportInfoP)
 {
 	prMALError result = malNoError;
@@ -1259,7 +1259,7 @@ prMALError exExport(exportStdParms *stdParmsP, exDoExportRec *exportInfoP)
 	// Get the audio frame size we need to send to the encoder
 	csSDK_int32 maxBlip;
 	instRec->sequenceAudioSuite->GetMaxBlip(audioRendererID, ticksPerFrame.value.timeValue, &maxBlip);
-
+	
 	// Allocate audio output buffer
 	float *audioBuffer[MAX_AUDIO_CHANNELS];
 	for (int i = 0; i < MAX_AUDIO_CHANNELS; i++)
@@ -1282,6 +1282,13 @@ prMALError exExport(exportStdParms *stdParmsP, exDoExportRec *exportInfoP)
 	encoder.videoContext->configure(videoContextInfo, &videoEncoderConfig);
 	encoder.audioContext->configure(audioContextInfo, &audioEncoderConfig);
 
+
+
+
+
+
+
+
 	// Get target render format
 	PrPixelFormat pixelFormat = VideoRenderer::GetTargetRenderFormat(
 		videoEncoderConfig.getPixelFormat(),
@@ -1291,9 +1298,7 @@ prMALError exExport(exportStdParms *stdParmsP, exDoExportRec *exportInfoP)
 
 	// Stop if pixel format is not supported
 	if (pixelFormat == PrPixelFormat_Invalid)
-	{
 		return suiteError_RenderInvalidPixelFormat;
-	}
 
 	// Start the rendering loop
 	result = videoRenderer->render(pixelFormat, exportInfoP->startTime, exportInfoP->endTime, maxPasses, [&](EncodingData *encodingData)
@@ -1335,6 +1340,12 @@ prMALError exExport(exportStdParms *stdParmsP, exDoExportRec *exportInfoP)
 			{
 				return false;
 			}
+
+			// Hack ...
+			if (encoder.audioContext->codecContext->frame_size < maxBlip)
+			{
+				maxBlip = encoder.audioContext->codecContext->frame_size;
+			}
 		}
 
 		// Encode and write the rendered video frame
@@ -1360,7 +1371,7 @@ prMALError exExport(exportStdParms *stdParmsP, exDoExportRec *exportInfoP)
 			result = instRec->sequenceAudioSuite->GetAudio(audioRendererID, chunk, audioBuffer, kPrFalse);
 
 			// Send raw data to the encoder
-			if (encoder.writeAudioFrame((const uint8_t**)audioBuffer, chunk) != S_OK)
+			if (encoder.writeAudioFrame(audioBuffer, chunk) != S_OK)
 			{
 				return false;
 			}
